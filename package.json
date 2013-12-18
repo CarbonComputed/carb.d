@@ -1,0 +1,13 @@
+{
+	"name": "carb.d",
+	"description": "MVC Extension of vibe.d",
+	"copyright": "Copyright (C) 2000 Me. All rights reserved.",
+	"license": "AGPL-3.0",
+	"homepage": "http://www.github.com/KevCarbone",
+	"authors": [
+		"Kevin Carbone"
+	],
+	"dependencies": {
+		"vibe-d": ">=0.7.12"
+	}
+}
