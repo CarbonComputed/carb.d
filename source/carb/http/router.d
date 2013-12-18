@@ -48,10 +48,10 @@ class CarbRouter : URLRouter {
         }
 
         void resource(string resource){
-                //import std.algorithm;
+                import std.algorithm;
                 //assert(count(path, ':') <= maxRouteParameters, "Too many route parameters");
                 //logDebug("add route %s %s", method, path);
-                
+
 
                 //m_routes[method] ~= Route(path, defaults.controller,defaults.action);
                 
