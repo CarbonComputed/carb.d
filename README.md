@@ -3,6 +3,7 @@ carb.d
 
 An MVC framework built on vibe.d.
 Example:
+```
 
 import vibe.d;
 import std.string;
@@ -41,3 +42,4 @@ shared static this()
 
         listenHTTP(settings, router);
 }
+```
