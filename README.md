@@ -27,16 +27,11 @@ class IndexController : Controller{
 shared static this()
 {
         auto router = new CarbRouter;
-        //router.get("/users/:user", &userInfo);
-        //router.post("/adduser", &addUser);
+
         router.controllerDirectory = "carb.app";
         router.addRoute(HTTPMethod.GET,"/:id",RouteDefaults("IndexController","index"));
 
-        // To reduce code redundancy, you can also
-        // use method chaining:
-        //router
-        //        .get("/users/:user", &userInfo)
-        //        .post("/adduser", &addUser);
+
         auto settings = new HTTPServerSettings;
         settings.port = 8080;
 
