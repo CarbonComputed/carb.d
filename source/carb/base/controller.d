@@ -6,13 +6,14 @@ import std.traits;
 
 import std.stdio;
 
+import carb.base.validator;
 
 interface Dynamic {
 	Variant callMethod(HTTPServerRequest req, HTTPServerResponse res,string method);
 }
 
 enum DynamicallyAvailable; // we'll use this as a user-defined annotation to see if the method should be available
-
+enum Action;
 // This sees if the above attribute is on the member
 bool isDynamicallyAvailable(alias member)() {
 	// the way UDAs work in D is this trait gives you a list of them
@@ -20,6 +21,16 @@ bool isDynamicallyAvailable(alias member)() {
 	// we don't handle that case here)
 	foreach(annotation; __traits(getAttributes, member))
 		static if(is(annotation == DynamicallyAvailable))
+			return true;
+	return false;
+}
+
+bool isActionAvailable(alias member)() {
+	// the way UDAs work in D is this trait gives you a list of them
+	// they are identified by type and can also hold a value (though
+	// we don't handle that case here)
+	foreach(annotation; __traits(getAttributes, member))
+		static if(is(annotation == Action))
 			return true;
 	return false;
 }
@@ -92,7 +103,7 @@ mixin template DynamicImplementation() {
 //				alias member = Helper!(__traits(getMember, this, memberName));
 
 				// we're only interested in calling functions that are marked as available
-				static if(is(typeof(__traits(getMember, this, memberName)) == function) && isDynamicallyAvailable!(__traits(getMember, this, memberName))) {
+				static if(is(typeof(__traits(getMember, this, memberName)) == function) && isActionAvailable!(__traits(getMember, this, memberName))) {
 				
 				alias PT = ParameterTypeTuple!(__traits(getMember, this, memberName));
 				PT params;
@@ -147,7 +158,60 @@ mixin template DynamicImplementation() {
 				                                                        }
 				                                                }
 
-				                                                params[i] = fromRestString!P(req.query[ParamNames[i]]);
+				                                                static if(is(P : IValidator)){
+				                                                		//not int, but check for validate UDA
+				                                                		//if has validate
+				                                                		//get validator for argname
+				                                                		//run validator, set params to result
+				                                                		
+				                                                		alias VPT = ParameterTypeTuple!(__traits(getMember, P,"initWithArgs"));
+				                                                		enum Vnames = [ParameterIdentifierTuple!(__traits(getMember, P,"initWithArgs"))];
+				                                                		alias Vdefaults = ParameterDefaultValueTuple!(__traits(getMember, P,"initWithArgs"));
+				                                                		writeln(Vnames);
+				                                                		VPT vparams;
+				                                                		foreach (n, Q; VPT) {
+				                                                			 static if (n == 0 && Vnames[n] == "id") {
+											                                        // legacy special case for :id, backwards-compatibility
+											                                        logDebug("id %s", req.params["id"]);
+											                                        writeln(req.params["id"]);
+											                                        vparams[n] = fromRestString!Q(req.params["id"]);
+											                                }
+											                                else{
+											                                		alias VDefVal = Vdefaults[n];
+
+
+				                                                
+									                                                static if (is (VDefVal == void)) {
+									                                                        enforce(
+									                                                                Vnames[n] in req.query,
+									                                                                format("Missing validation query parameter '%s'", Vnames[n])
+									                                                        );
+									                                                } else {
+									                                                        if (Vnames[n] !in req.query) {
+									                                                                vparams[n] = VDefVal;
+									                                                                continue;
+									                                                        }
+									                                                }
+
+									                                                vparams[n] = fromRestString!Q(req.query[Vnames[n]]);
+											                                }
+	
+			                                   								
+				                                                		}
+				                                                		P obj = new P();
+				                                                		__traits(getMember, obj,"initWithArgs")(vparams);
+				                                                		bool validate = __traits(getMember, obj,"validate")();
+				                                                		enforce(
+				                                                				validate,
+							                                                    format("Failed validation on query parameter '%s'. \n Error: %s", ParamNames[i],obj.getError())
+				                                                			);
+				                                                		params[i] = obj;
+				                                                }
+				                                                //o.w.
+				                                                else{
+				                                                	params[i] = fromRestString!P(req.query[ParamNames[i]]);
+
+				                                                }
 				                                               
 				                                        } else {
 				                                                logDebug("%s %s", method, ParamNames[i]);
@@ -176,8 +240,50 @@ mixin template DynamicImplementation() {
 				                                                                continue;
 				                                                        }
 				                                                }
+				                                                static if(is(P : IValidator)){
+				                                                		//not int, but check for validate UDA
+				                                                		//if has validate
+				                                                		//get validator for argname
+				                                                		//run validator, set params to result
+				                                                		
+				                                                		alias VPT = ParameterTypeTuple!(__traits(getMember, P,"initWithArgs"));
+				                                                		enum Vnames = ParameterIdentifierTuple!(__traits(getMember, P,"initWithArgs"));
+				                                                		alias Vdefaults = ParameterDefaultValueTuple!(__traits(getMember, P,"initWithArgs"));
+				                                                		writeln(Vnames);
+				                                                		VPT vparams;
+				                                                		foreach (n, Q; VPT) {
+																			alias VDefVal = Vdefaults[n];
 
-				                                                params[i] = deserializeJson!P(req.json[ParamNames[i]]);
+
+				                                                
+							                                                static if (is(DefVal == void)) {
+							                                                        enforce(
+							                                                                req.json[ParamNames[i]].type != Json.Type.Undefined,
+							                                                                format("Missing parameter %s", ParamNames[i])
+							                                                        );
+							                                                } else {
+							                                                        if (req.json[ParamNames[i]].type == Json.Type.Undefined) {
+							                                                                params[i] = DefVal;
+							                                                                continue;
+							                                                        }
+							                                                }
+
+							                                                vparams[n] = deserializeJson!Q(req.json[Vnames[n]]);
+			                                   								
+				                                                		}
+				                                                		P obj = new P();
+				                                                		__traits(getMember, obj,"initWithArgs")(vparams);
+				                                                		bool validate = __traits(getMember, obj,"validate")();
+				                                                		enforce(
+				                                                				validate,
+							                                                    format("Failed validation on query parameter '%s'. \n Error: %s", ParamNames[i],obj.getError())
+				                                                			);
+				                                                		params[i] = obj;
+				                                                }
+				                                                else{
+				                                                	params[i] = deserializeJson!P(req.json[ParamNames[i]]);
+
+				                                                }
 				                                        }
 				                                }
 				                        //}
@@ -254,19 +360,8 @@ class Controller : Dynamic {
 		return cast(Controller) Object.factory(name);
 	}
 
-	//static Controller getInstance(){
-	//	return Object.factory(__MODULE__);
-	//}
 }
 
-//class IndexController : Controller{
-//        mixin DynamicImplementation!();
 
-//        @DynamicallyAvailable
-//        void index(){
-//                this.res.writeBody("Hello, World!", "text/plain");
-//        }
-        
-//}
 
 

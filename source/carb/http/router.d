@@ -49,6 +49,11 @@ class CarbRouter : URLRouter {
 
         void resource(string resource){
                 import std.algorithm;
+                string RC = resource.capitalize() ~ "Controller";
+                string _Base = "/" ~ resource.toLower();
+                string _New        = _Base ~ "/new";
+                string _ID         = _Base ~ "/:id";
+                string _Edit        = _ID ~ "/edit";
                 //assert(count(path, ':') <= maxRouteParameters, "Too many route parameters");
                 //logDebug("add route %s %s", method, path);
 

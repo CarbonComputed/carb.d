@@ -7,14 +7,14 @@ import std.stdio;
 
 
 import carb.http.router;
-
+import carb.base.validator;
 
 
 
 class AuthController : Controller{
         mixin DynamicImplementation!();
 
-        @DynamicallyAvailable
+        @Action
         void login(int y){
                 writeln("y");
                 writeln(y);
@@ -23,11 +23,13 @@ class AuthController : Controller{
         
 }
 
+
+
 class IndexController : Controller{
         mixin DynamicImplementation!();
 
-        @DynamicallyAvailable
-        void index(int id,string q){
+        @Action
+        void index(int id,Val q){
                 this.res.writeJsonBody(id);
                 this.res.writeJsonBody(q);
                 this.res.writeBody("Hello, World id!", "text/plain");
