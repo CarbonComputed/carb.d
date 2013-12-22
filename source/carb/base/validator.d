@@ -30,13 +30,30 @@ abstract class Validator : IValidator{
 	}
 }
 
+class TVal : Validator{
+
+	int x;
+
+	void initWithArgs(string q,int y ){
+		writeln(y);
+		this.x = y;
+
+	}
+	override bool validate(){
+
+		return true;
+	}
+
+
+}
+
 class Val : Validator{
 
 	int x;
 
-	void initWithArgs(int id,string q,int y ){
-		writeln("yay!");
-		this.x = y;
+	void initWithArgs(int id,TVal n ){
+		
+		this.x = n.x;
 
 	}
 	override bool validate(){

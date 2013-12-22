@@ -25,26 +25,19 @@ class AuthController : Controller{
 
 
 
-class IndexController : Controller{
-        mixin DynamicImplementation!();
 
-        @Action
-        void index(int id,Val q){
-                this.res.writeJsonBody(id);
-                this.res.writeJsonBody(q);
-                this.res.writeBody("Hello, World id!", "text/plain");
-        }
-        
-}
 
 shared static this()
 {
-        auto router = new CarbRouter;
+        auto router = new CarbRouter!"carb.controllers";
         //router.get("/users/:user", &userInfo);
         //router.post("/adduser", &addUser);
-        router.controllerDirectory = "carb.app";
-        router.addRoute(HTTPMethod.GET,"/:id",RouteDefaults("IndexController","index"));
+        
+      //  router.addRoute(HTTPMethod.GET,"/:id",RouteDefaults("index.IndexController","index"));
+      
+        router.resource!"index";
 
+        
         // To reduce code redundancy, you can also
         // use method chaining:
         //router

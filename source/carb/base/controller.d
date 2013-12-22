@@ -14,6 +14,13 @@ interface Dynamic {
 
 enum DynamicallyAvailable; // we'll use this as a user-defined annotation to see if the method should be available
 enum Action;
+struct CarbPath{
+	string path;
+}
+struct CarbMethod{
+	HTTPMethod method;
+}
+
 // This sees if the above attribute is on the member
 bool isDynamicallyAvailable(alias member)() {
 	// the way UDAs work in D is this trait gives you a list of them
@@ -88,6 +95,89 @@ mixin template DynamicImplementation() {
 	override Variant callMethod(HTTPServerRequest req, HTTPServerResponse res, string methodNameWanted) {
 
 
+		template ValidationParamHandler(P,VPT ...){
+			void validationParamHandler(ref VPT vparams,int method,int depth=3){
+                enforce(
+                    depth > -1,
+                    format("Max depth exceeded")
+                );
+				if(depth <= 0){
+					return;
+				}
+        		enum Vnames = [ParameterIdentifierTuple!(__traits(getMember, P,"initWithArgs"))];
+        		alias Vdefaults = ParameterDefaultValueTuple!(__traits(getMember, P,"initWithArgs"));
+        		writeln(Vnames);
+ //       		VPT vparams;
+        		foreach (n, Q; VPT) {
+        			 static if (n == 0 && Vnames[n] == "id") {
+                            // legacy special case for :id, backwards-compatibility
+                            logDebug("id %s", req.params["id"]);
+                            writeln(req.params["id"]);
+                            vparams[n] = fromRestString!Q(req.params["id"]);
+                    }
+                    else{
+                    		alias VDefVal = Vdefaults[n];
+
+
+        
+
+                            static if(is(Q : IValidator)){
+                        		alias WPT = ParameterTypeTuple!(__traits(getMember, Q,"initWithArgs"));
+                        		WPT qparams;
+                        		ValidationParamHandler!(Q,WPT).validationParamHandler(qparams,method,depth - 1);
+                        		Q obj = new Q();
+                        		__traits(getMember, obj,"initWithArgs")(qparams);
+                        		bool validate = __traits(getMember, obj,"validate")();
+                        		enforce(
+                        				validate,
+                                        format("Failed validation on query parameter '%s'. \n Error: %s", Vnames[n],obj.getError())
+                        			);
+                        		vparams[n] = obj;
+                            }
+                            else{
+                            	if(method == HTTPMethod.GET){
+		                            static if (is (VDefVal == void)) {
+		                                    enforce(
+		                                            Vnames[n] in req.query,
+		                                            format("Missing validation query parameter '%s'", Vnames[n])
+		                                    );
+		                            } else {
+		                                    if (Vnames[n] !in req.query) {
+		                                            vparams[n] = VDefVal;
+		                                            continue;
+		                                    }
+		                            }
+		                            vparams[n] = fromRestString!Q(req.query[Vnames[n]]);
+
+
+	                        	}
+	                        	else{
+                                    static if (is(VDefVal == void)) {
+                                            enforce(
+                                                    req.json[Vnames[n]].type != Json.Type.Undefined,
+                                                    format("Missing parameter %s", Vnames[n])
+                                            );
+                                    } else {
+                                            if (req.json[Vnames[n]].type == Json.Type.Undefined) {
+                                                    vparams[n] = VDefVal;
+                                                    continue;
+                                            }
+                                    }	
+		                            vparams[n] = deserializeJson!Q(req.json[Vnames[n]]);
+
+	                        	}
+
+                            }
+
+                    }
+
+						
+        		}
+
+        		writeln(vparams);
+			}
+		}
+		
 
 		foreach(memberName; __traits(allMembers, typeof(this))) {
 //				writeln(memberName);
@@ -165,39 +255,9 @@ mixin template DynamicImplementation() {
 				                                                		//run validator, set params to result
 				                                                		
 				                                                		alias VPT = ParameterTypeTuple!(__traits(getMember, P,"initWithArgs"));
-				                                                		enum Vnames = [ParameterIdentifierTuple!(__traits(getMember, P,"initWithArgs"))];
-				                                                		alias Vdefaults = ParameterDefaultValueTuple!(__traits(getMember, P,"initWithArgs"));
-				                                                		writeln(Vnames);
 				                                                		VPT vparams;
-				                                                		foreach (n, Q; VPT) {
-				                                                			 static if (n == 0 && Vnames[n] == "id") {
-											                                        // legacy special case for :id, backwards-compatibility
-											                                        logDebug("id %s", req.params["id"]);
-											                                        writeln(req.params["id"]);
-											                                        vparams[n] = fromRestString!Q(req.params["id"]);
-											                                }
-											                                else{
-											                                		alias VDefVal = Vdefaults[n];
-
-
-				                                                
-									                                                static if (is (VDefVal == void)) {
-									                                                        enforce(
-									                                                                Vnames[n] in req.query,
-									                                                                format("Missing validation query parameter '%s'", Vnames[n])
-									                                                        );
-									                                                } else {
-									                                                        if (Vnames[n] !in req.query) {
-									                                                                vparams[n] = VDefVal;
-									                                                                continue;
-									                                                        }
-									                                                }
-
-									                                                vparams[n] = fromRestString!Q(req.query[Vnames[n]]);
-											                                }
-	
-			                                   								
-				                                                		}
+				                                                		ValidationParamHandler!(P,VPT).validationParamHandler(vparams,req.method);
+				                                                		writeln(vparams);
 				                                                		P obj = new P();
 				                                                		__traits(getMember, obj,"initWithArgs")(vparams);
 				                                                		bool validate = __traits(getMember, obj,"validate")();
@@ -246,31 +306,11 @@ mixin template DynamicImplementation() {
 				                                                		//get validator for argname
 				                                                		//run validator, set params to result
 				                                                		
+				                                                		
 				                                                		alias VPT = ParameterTypeTuple!(__traits(getMember, P,"initWithArgs"));
-				                                                		enum Vnames = ParameterIdentifierTuple!(__traits(getMember, P,"initWithArgs"));
-				                                                		alias Vdefaults = ParameterDefaultValueTuple!(__traits(getMember, P,"initWithArgs"));
-				                                                		writeln(Vnames);
 				                                                		VPT vparams;
-				                                                		foreach (n, Q; VPT) {
-																			alias VDefVal = Vdefaults[n];
-
-
-				                                                
-							                                                static if (is(DefVal == void)) {
-							                                                        enforce(
-							                                                                req.json[ParamNames[i]].type != Json.Type.Undefined,
-							                                                                format("Missing parameter %s", ParamNames[i])
-							                                                        );
-							                                                } else {
-							                                                        if (req.json[ParamNames[i]].type == Json.Type.Undefined) {
-							                                                                params[i] = DefVal;
-							                                                                continue;
-							                                                        }
-							                                                }
-
-							                                                vparams[n] = deserializeJson!Q(req.json[Vnames[n]]);
-			                                   								
-				                                                		}
+				                                                		ValidationParamHandler!(P,VPT).validationParamHandler(vparams,req.method);
+				                                                		writeln(vparams);
 				                                                		P obj = new P();
 				                                                		__traits(getMember, obj,"initWithArgs")(vparams);
 				                                                		bool validate = __traits(getMember, obj,"validate")();
@@ -334,14 +374,16 @@ mixin template DynamicImplementation() {
 
 
 
+
+
 }
 
 
 class Controller : Dynamic {
 	mixin DynamicImplementation!();
 
-	HTTPServerRequest req;
-	HTTPServerResponse res;
+	protected HTTPServerRequest req;
+	protected HTTPServerResponse res;
 
 	this() {
 			

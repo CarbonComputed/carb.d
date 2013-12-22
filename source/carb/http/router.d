@@ -2,7 +2,6 @@ module carb.http.router;
 
 import std.stdio;
 public import vibe.http.server;
-import std.metastrings;
 import std.string;
 
 import vibe.core.log;
@@ -17,9 +16,58 @@ import vibe.textfilter.urlencode;
 import std.functional;
 import carb.base.controller;
 
+//enum _controllerDirectory = "carb.controllers";
 
-class CarbRouter : URLRouter {
-        string controllerDirectory = "carb.base.controller";
+template hasAnnotation(alias f, Attr) {
+    bool helper() {
+
+        foreach(attr; __traits(getAttributes, f)){
+
+            static if(is(attr == Attr) || is(typeof(attr) == Attr)){
+                pragma(msg,Attr);
+                return true;
+            }
+        }
+        return false;
+
+    }
+
+    enum bool hasAnnotation = helper;
+}
+
+template hasValueAnnotation(alias f, Attr) {
+    bool helper() {
+        foreach(attr; __traits(getAttributes, f))
+            static if(is(typeof(attr) == Attr))
+                return true;
+        return false;
+
+    }
+    enum bool hasValueAnnotation = helper;
+}
+
+
+
+template getAnnotation(alias f, Attr) if(hasValueAnnotation!(f, 
+Attr)) {
+    auto helper() {
+        foreach(attr; __traits(getAttributes, f))
+            static if(is(typeof(attr) == Attr))
+                return attr;
+        assert(0);
+    }
+
+    enum getAnnotation = helper;
+}
+
+class CarbRouter(string _controllerDirectory) : URLRouter {
+        //string controllerDirectory = "carb.base.controller";
+
+        
+
+
+
+
 
         private {
                 Route[][HTTPMethod.max+1] m_routes;
@@ -47,18 +95,89 @@ class CarbRouter : URLRouter {
                 
         }
 
-        void resource(string resource){
-                import std.algorithm;
-                string RC = resource.capitalize() ~ "Controller";
+        final void resourceCont ( _C : Controller ) (string resource ) {
                 string _Base = "/" ~ resource.toLower();
-                string _New        = _Base ~ "/new";
                 string _ID         = _Base ~ "/:id";
-                string _Edit        = _ID ~ "/edit";
-                //assert(count(path, ':') <= maxRouteParameters, "Too many route parameters");
-                //logDebug("add route %s %s", method, path);
+                string _Cont = resource.capitalize() ~ "Controller";
+                string _Module = resource ~ "." ~ _Cont;
+                //alias T = typeof(Controller.getType());
+                
+                foreach(memberName; __traits(allMembers,_C )) {
 
+                    // this static if filters out private members that we can see, but cannot access
+                    static if(__traits(compiles, __traits(getMember, _C, memberName))) {
+                        string path = "/" ~ resource ~ "/" ~ memberName;
 
-                //m_routes[method] ~= Route(path, defaults.controller,defaults.action);
+                        if(resource == "index"){
+                            path = "/" ~ memberName;
+                            if(memberName == "index"){
+                                path = "";
+                            }
+
+                        }
+                        enum hasAction =  hasAnnotation!(__traits(getMember, _C, memberName), Action);
+                        enum hasPath = hasAnnotation!(__traits(getMember, _C, memberName), CarbPath);
+                        enum hasHttpMethod = hasAnnotation!(__traits(getMember, _C, memberName), CarbMethod);
+                        static if(hasPath || hasAction || hasHttpMethod){
+                            static if(hasHttpMethod){
+                                enum method = getAnnotation!(__traits(getMember, _C, memberName), CarbMethod).method;
+                                pragma(msg,hasPath);
+                                static if(hasPath){
+                                    enum p = getAnnotation!(__traits(getMember, _C, memberName), CarbPath);
+                                    path = p.path;
+                                    writeln(path);
+                                }
+                                else{
+                                    import std.traits : ParameterTypeTuple, ReturnType,
+                                    ParameterDefaultValueTuple, ParameterIdentifierTuple;  
+                                    enum params = [ParameterIdentifierTuple!(__traits(getMember, _C,memberName))];
+                                    static if(params.length && params[0].toLower() == "id"){
+                                        
+                                        path = path ~  "/:id";
+                                       
+                                        
+                                    }
+                                }
+                                writeln(path);
+                                writeln(_Module);
+                                writeln(resource);
+                                this.addRoute(method,path,RouteDefaults(_Module,resource));
+                            }
+                            
+                        }
+                        
+                    }
+                }
+                //iterate through methods in controller
+                    //if it has @action or @path
+                        //if has @path, 
+                        //  set path as attribute
+                        //else
+                          //if has "id" in function
+                            //use  _ID ~ funcname
+                          //else
+                            //use funcname
+                    //read HTTP UDA
+        }
+
+        final @property void resource(string _R)(){
+                import std.algorithm;
+                
+
+                enum _Cont = _R.capitalize() ~ "Controller";
+                enum _Module = _controllerDirectory  ~ "." ~ _R.toLower();
+
+                pragma(msg,_Module);
+
+                mixin(format(
+                        q{  
+                              import %s;
+                              resourceCont!%s("""%s""");
+
+                        },
+                        _Module,_Cont,_R));
+                       
+
                 
         }
         
@@ -80,8 +199,14 @@ class CarbRouter : URLRouter {
                                                 //create controller
                                                 //r.controller "action"
                                                 writeln(r.controller);
+                                                mixin(format(
+                                                        q{  
+                                                            string contDir = """%s""";
+                                                        },
+                                                        _controllerDirectory));
+                                                auto o = Controller.factory( contDir ~"."~ r.controller);
+                                                writeln(contDir ~"."~ r.controller);
 
-                                                auto o = Controller.factory(controllerDirectory ~"."~ r.controller);
                                                 o.init(req,res);
                                                 writeln(o);
                                                 o.callMethod(req,res,r.action);
@@ -157,131 +282,7 @@ private struct Route {
         }
 }
 
-//private void jsonMethodHandler(string method, alias Func)
-//{
-//        import std.traits : ParameterTypeTuple, ReturnType,
-//                ParameterDefaultValueTuple, ParameterIdentifierTuple;        
-//        import std.string : format;
-//        import std.algorithm : startsWith;
-//        import std.exception : enforce;
 
-//        import vibe.http.server : HTTPServerRequest, HTTPServerResponse;
-//        import vibe.http.common : HTTPStatusException, HTTPStatus;
-//        import vibe.utils.string : sanitizeUTF8;
-//        import vibe.internal.meta.funcattr : IsAttributedParameter;
-
-//        alias PT = ParameterTypeTuple!Func;
-//        alias RT = ReturnType!Func;
-//        alias ParamDefaults = ParameterDefaultValueTuple!Func;
-//        enum ParamNames = [ ParameterIdentifierTuple!Func ];
-        
-
-//                PT params;
-                
-//                foreach (i, P; PT) {
-//                        static assert (
-//                                ParamNames[i].length,
-//                                format(
-//                                        "Parameter %s of %s has no name",
-//                                        i.stringof,
-//                                        method
-//                                )
-//                        );
-
-//                        // will be re-written by UDA function anyway
-//                        static if (!IsAttributedParameter!(Func, ParamNames[i])) {
-//                                static if (i == 0 && ParamNames[i] == "id") {
-//                                        // legacy special case for :id, backwards-compatibility
-//                                        logDebug("id %s", req.params["id"]);
-//                                        params[i] = fromRestString!P(req.params["id"]);
-//                                } else static if (ParamNames[i].startsWith("_")) {
-//                                        // URL parameter
-//                                        static if (ParamNames[i] != "_dummy") {
-//                                                enforce(
-//                                                        ParamNames[i][1 .. $] in req.params,
-//                                                        format("req.param[%s] was not set!", ParamNames[i][1 .. $])
-//                                                );
-//                                                logDebug("param %s %s", ParamNames[i], req.params[ParamNames[i][1 .. $]]);
-//                                                params[i] = fromRestString!P(req.params[ParamNames[i][1 .. $]]);
-//                                        }
-//                                } else {
-//                                        // normal parameter
-//                                        alias DefVal = ParamDefaults[i];
-//                                        if (req.method == HTTPMethod.GET) {
-//                                                logDebug("query %s of %s" ,ParamNames[i], req.query);
-                                                
-//                                                static if (is (DefVal == void)) {
-//                                                        enforce(
-//                                                                ParamNames[i] in req.query,
-//                                                                format("Missing query parameter '%s'", ParamNames[i])
-//                                                        );
-//                                                } else {
-//                                                        if (ParamNames[i] !in req.query) {
-//                                                                params[i] = DefVal;
-//                                                                continue;
-//                                                        }
-//                                                }
-
-//                                                params[i] = fromRestString!P(req.query[ParamNames[i]]);
-//                                        } else {
-//                                                logDebug("%s %s", method, ParamNames[i]);
-
-//                                                enforce(
-//                                                        req.contentType == "application/json",
-//                                                        "The Content-Type header needs to be set to application/json."
-//                                                );
-//                                                enforce(
-//                                                        req.json.type != Json.Type.Undefined,
-//                                                        "The request body does not contain a valid JSON value."
-//                                                );
-//                                                enforce(
-//                                                        req.json.type == Json.Type.Object,
-//                                                        "The request body must contain a JSON object with an entry for each parameter."
-//                                                );
-
-//                                                static if (is(DefVal == void)) {
-//                                                        enforce(
-//                                                                req.json[ParamNames[i]].type != Json.Type.Undefined,
-//                                                                format("Missing parameter %s", ParamNames[i])
-//                                                        );
-//                                                } else {
-//                                                        if (req.json[ParamNames[i]].type == Json.Type.Undefined) {
-//                                                                params[i] = DefVal;
-//                                                                continue;
-//                                                        }
-//                                                }
-
-//                                                params[i] = deserializeJson!P(req.json[ParamNames[i]]);
-//                                        }
-//                                }
-//                        }
-//                }
-                
-//                try {
-//                        import vibe.internal.meta.funcattr;
-
-//                        auto handler = createAttributedFunction!Func(req, res);
-
-//                        static if (is(RT == void)) {
-//                                handler(&__traits(getMember, inst, method), params);
-//                                res.writeJsonBody(Json.emptyObject);
-//                        } else {
-//                                auto ret = handler(&__traits(getMember, inst, method), params);
-//                                res.writeJsonBody(ret);
-//                        }
-//                } catch (HTTPStatusException e) {
-//                        res.writeJsonBody([ "statusMessage": e.msg ], e.status);
-//                } catch (Exception e) {
-//                        // TODO: better error description!
-//                        res.writeJsonBody(
-//                                [ "statusMessage": e.msg, "statusDebugMessage": sanitizeUTF8(cast(ubyte[])e.toString()) ],
-//                                HTTPStatus.internalServerError
-//                        );
-//                }
-        
-        
-        
-//}
 
 
 private string skipPathNode(string str, ref size_t idx)
