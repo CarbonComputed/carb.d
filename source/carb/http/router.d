@@ -24,7 +24,7 @@ template hasAnnotation(alias f, Attr) {
         foreach(attr; __traits(getAttributes, f)){
 
             static if(is(attr == Attr) || is(typeof(attr) == Attr)){
-                pragma(msg,Attr);
+                
                 return true;
             }
         }
@@ -60,7 +60,7 @@ Attr)) {
     enum getAnnotation = helper;
 }
 
-class CarbRouter(string _controllerDirectory) : URLRouter {
+class CarbRouter(string _controllerDirectory) : HTTPServerRequestHandler {
         //string controllerDirectory = "carb.base.controller";
 
         
@@ -73,11 +73,21 @@ class CarbRouter(string _controllerDirectory) : URLRouter {
                 Route[][HTTPMethod.max+1] m_routes;
         }
 
-        /// Adds a new route for requests matching the specified HTTP method and pattern.
-        CarbRouter match(HTTPMethod method, string path, RouteDefaults defaults = RouteDefaults())
+        CarbRouter match(HTTPMethod method,string path)
         {
                 import std.algorithm;
                 assert(count(path, ':') <= maxRouteParameters, "Too many route parameters");
+                logDebug("add route %s %s", method, path);
+              //  m_routes[method] ~= Route(path, cb);
+                return this;
+        }
+
+        /// Adds a new route for requests matching the specified HTTP method and pattern.
+        CarbRouter match(HTTPMethod method, string path, RouteDefaults defaults)
+        {
+                import std.algorithm;
+                assert(count(path, ':') <= maxRouteParameters, "Too many route parameters");
+                assert(defaults.controller.length && defaults.action.length,"Missing default data");
                 logDebug("add route %s %s", method, path);
 
 
@@ -85,9 +95,20 @@ class CarbRouter(string _controllerDirectory) : URLRouter {
                 return this;
         }
 
-        void addRoute(HTTPMethod method, string path, RouteDefaults defaults = RouteDefaults()){
+        CarbRouter match(HTTPMethod method, string path)
+        {
+
+
+
+//                m_routes[method] ~= Route(path, defaults.controller,defaults.action);
+                return this;
+        }
+
+        void addRoute(HTTPMethod method, string path, RouteDefaults defaults){
                 import std.algorithm;
                 assert(count(path, ':') <= maxRouteParameters, "Too many route parameters");
+                assert(defaults.controller.length && defaults.action.length,"Missing default data");
+
                 logDebug("add route %s %s", method, path);
 
 
@@ -121,11 +142,11 @@ class CarbRouter(string _controllerDirectory) : URLRouter {
                         static if(hasPath || hasAction || hasHttpMethod){
                             static if(hasHttpMethod){
                                 enum method = getAnnotation!(__traits(getMember, _C, memberName), CarbMethod).method;
-                                pragma(msg,hasPath);
+                               
                                 static if(hasPath){
                                     enum p = getAnnotation!(__traits(getMember, _C, memberName), CarbPath);
                                     path = p.path;
-                                    writeln(path);
+                                   
                                 }
                                 else{
                                     import std.traits : ParameterTypeTuple, ReturnType,
@@ -138,9 +159,7 @@ class CarbRouter(string _controllerDirectory) : URLRouter {
                                         
                                     }
                                 }
-                                writeln(path);
-                                writeln(_Module);
-                                writeln(resource);
+
                                 this.addRoute(method,path,RouteDefaults(_Module,resource));
                             }
                             
@@ -148,16 +167,7 @@ class CarbRouter(string _controllerDirectory) : URLRouter {
                         
                     }
                 }
-                //iterate through methods in controller
-                    //if it has @action or @path
-                        //if has @path, 
-                        //  set path as attribute
-                        //else
-                          //if has "id" in function
-                            //use  _ID ~ funcname
-                          //else
-                            //use funcname
-                    //read HTTP UDA
+
         }
 
         final @property void resource(string _R)(){
@@ -167,7 +177,7 @@ class CarbRouter(string _controllerDirectory) : URLRouter {
                 enum _Cont = _R.capitalize() ~ "Controller";
                 enum _Module = _controllerDirectory  ~ "." ~ _R.toLower();
 
-                pragma(msg,_Module);
+                
 
                 mixin(format(
                         q{  
@@ -198,17 +208,17 @@ class CarbRouter(string _controllerDirectory) : URLRouter {
                                                 //writeln(req.query["y"]);
                                                 //create controller
                                                 //r.controller "action"
-                                                writeln(r.controller);
+                                                
                                                 mixin(format(
                                                         q{  
                                                             string contDir = """%s""";
                                                         },
                                                         _controllerDirectory));
-                                                auto o = Controller.factory( contDir ~"."~ r.controller);
-                                                writeln(contDir ~"."~ r.controller);
+                                                auto o = Controller.factory( contDir ~"."~ r.controller,req,res);
+                                                
 
-                                                o.init(req,res);
-                                                writeln(o);
+                                              //  o.init(req,res);
+                                             
                                                 o.callMethod(req,res,r.action);
                                                 //r.cb();
                                                 if( res.headerWritten )
@@ -235,8 +245,8 @@ class CarbRouter(string _controllerDirectory) : URLRouter {
 private enum maxRouteParameters = 64;
 
 public struct RouteDefaults{
-    string controller = "IndexController";
-    string action = "index";
+    string controller;
+    string action;
 
 }
 

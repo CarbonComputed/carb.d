@@ -174,7 +174,7 @@ mixin template DynamicImplementation() {
 						
         		}
 
-        		writeln(vparams);
+        		
 			}
 		}
 		
@@ -376,6 +376,8 @@ mixin template DynamicImplementation() {
 
 
 
+
+
 }
 
 
@@ -385,9 +387,10 @@ class Controller : Dynamic {
 	protected HTTPServerRequest req;
 	protected HTTPServerResponse res;
 
-	this() {
-			
+	this(){
+
 	}
+
 
 
 	void init(HTTPServerRequest req, HTTPServerResponse res) {
@@ -398,10 +401,26 @@ class Controller : Dynamic {
 
 
 
-	static Controller factory(string name){
-		return cast(Controller) Object.factory(name);
+	static Controller factory(string name,HTTPServerRequest req, HTTPServerResponse res){
+		Controller c = cast(Controller) Object.factory(name);
+		c.init(req,res);
+		return c;
 	}
 
+
+}
+class ControllerFactory(T : Controller){
+
+	static T create(HTTPServerRequest req, HTTPServerResponse res){
+		T cont = new T(req,res);
+		return cont;
+	}
+
+}
+
+unittest{
+	//Controller c = new Controller;
+	//assert(!c);
 }
 
 

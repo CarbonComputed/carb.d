@@ -16,9 +16,12 @@ class IndexController : Controller{
         @Action
         @CarbMethod(HTTPMethod.GET)
         void index(int id,Val q){
-                this.res.writeJsonBody(id);
-                this.res.writeJsonBody(q);
+                //this.res.writeJsonBody(id);
+                //this.res.writeJsonBody(q);
                 this.res.writeBody("Hello, World id!", "text/plain");
         }
+
+
+        
         
 }

@@ -1,0 +1,3 @@
+interface ActionResult{
+	void render();
+}
