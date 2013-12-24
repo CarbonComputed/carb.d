@@ -64,5 +64,41 @@ class IndexController : Controller{
 }
 
 ```
+I have some example validators. Validators are processed with the query parameters. Here is an example:
+```
+class TVal : Validator{
+
+	int x;
+
+	void initWithArgs(string q,int y ){
+		writeln(y);
+		this.x = y;
+
+	}
+	override bool validate(){
+
+		return true;
+	}
+
+
+}
+
+class Val : Validator{
+
+	int x;
+
+	void initWithArgs(int id,TVal n ){
+		
+		this.x = n.x;
+
+	}
+	override bool validate(){
+
+		return true;
+	}
+
+
+}
+```
 
 
