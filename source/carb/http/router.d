@@ -15,68 +15,24 @@ import vibe.textfilter.urlencode;
 
 import std.functional;
 import carb.base.controller;
-
-//enum _controllerDirectory = "carb.controllers";
-
-template hasAnnotation(alias f, Attr) {
-    bool helper() {
-
-        foreach(attr; __traits(getAttributes, f)){
-
-            static if(is(attr == Attr) || is(typeof(attr) == Attr)){
-                
-                return true;
-            }
-        }
-        return false;
-
-    }
-
-    enum bool hasAnnotation = helper;
-}
-
-template hasValueAnnotation(alias f, Attr) {
-    bool helper() {
-        foreach(attr; __traits(getAttributes, f))
-            static if(is(typeof(attr) == Attr))
-                return true;
-        return false;
-
-    }
-    enum bool hasValueAnnotation = helper;
-}
+import carb.utils.util;
+import carb.http.route;
+import carb.http.namespace;
 
 
 
-template getAnnotation(alias f, Attr) if(hasValueAnnotation!(f, 
-Attr)) {
-    auto helper() {
-        foreach(attr; __traits(getAttributes, f))
-            static if(is(typeof(attr) == Attr))
-                return attr;
-        assert(0);
-    }
+class CarbRouter : HTTPServerRequestHandler {
 
-    enum getAnnotation = helper;
-}
-
-class CarbRouter(string _controllerDirectory) : HTTPServerRequestHandler {
-        //string controllerDirectory = "carb.base.controller";
-
-        
-
-
-
-
+        enum _controllerDirectory = "carb.controllers";
 
         private {
-                Route[][HTTPMethod.max+1] m_routes;
+                CarbRoute[][HTTPMethod.max+1] m_routes;
         }
 
         CarbRouter match(HTTPMethod method,string path)
         {
                 import std.algorithm;
-                assert(count(path, ':') <= maxRouteParameters, "Too many route parameters");
+                assert(count(path, ':') <= CarbRoute.maxRouteParameters, "Too many route parameters");
                 logDebug("add route %s %s", method, path);
               //  m_routes[method] ~= Route(path, cb);
                 return this;
@@ -86,12 +42,12 @@ class CarbRouter(string _controllerDirectory) : HTTPServerRequestHandler {
         CarbRouter match(HTTPMethod method, string path, RouteDefaults defaults)
         {
                 import std.algorithm;
-                assert(count(path, ':') <= maxRouteParameters, "Too many route parameters");
-                assert(defaults.controller.length && defaults.action.length,"Missing default data");
+                assert(count(path, ':') <= CarbRoute.maxRouteParameters, "Too many route parameters");
+                //assert(defaults.controller.length && defaults.action.length,"Missing default data");
                 logDebug("add route %s %s", method, path);
 
 
-                m_routes[method] ~= Route(path, defaults.controller,defaults.action);
+                m_routes[method] ~= new CarbRoute(method,path, defaults.controllerData,defaults.action);
                 return this;
         }
 
@@ -106,33 +62,36 @@ class CarbRouter(string _controllerDirectory) : HTTPServerRequestHandler {
 
         void addRoute(HTTPMethod method, string path, RouteDefaults defaults){
                 import std.algorithm;
-                assert(count(path, ':') <= maxRouteParameters, "Too many route parameters");
-                assert(defaults.controller.length && defaults.action.length,"Missing default data");
+                assert(count(path, ':') <= CarbRoute.maxRouteParameters, "Too many route parameters");
+                writeln(defaults.action);
+             //   assert(defaults.controller.length && defaults.action.length,"Missing default data");
 
                 logDebug("add route %s %s", method, path);
 
 
-                m_routes[method] ~= Route(path, defaults.controller,defaults.action);
+                m_routes[method] ~= new CarbRoute(method, path, defaults.controllerData,defaults.action);
                 
         }
 
-        final void resourceCont ( _C : Controller ) (string resource ) {
-                string _Base = "/" ~ resource.toLower();
-                string _ID         = _Base ~ "/:id";
-                string _Cont = resource.capitalize() ~ "Controller";
-                string _Module = resource ~ "." ~ _Cont;
+        final @property CarbRouter resource ( _C : Controller , string _R) (string prefix = "") {
+                
+                string _Base = prefix ~ "/" ~ _R.toLower();
+                string _ID = _Base ~ "/:" ~ _R ~ "_id";
+                string _Cont = _R.capitalize() ~ "Controller";
+                string _Module = _R ~ "." ~ _Cont;
                 //alias T = typeof(Controller.getType());
                 
                 foreach(memberName; __traits(allMembers,_C )) {
 
                     // this static if filters out private members that we can see, but cannot access
                     static if(__traits(compiles, __traits(getMember, _C, memberName))) {
-                        string path = "/" ~ resource ~ "/" ~ memberName;
+                        string path = prefix ~ "/" ~ _R ~ "/" ~ memberName;
 
-                        if(resource == "index"){
-                            path = "/" ~ memberName;
+                        if(_R == "index"){
+                            path = prefix;
+                            path = path  ~ "/" ~ memberName;
                             if(memberName == "index"){
-                                path = "";
+                                path = path ~ "";
                             }
 
                         }
@@ -141,56 +100,76 @@ class CarbRouter(string _controllerDirectory) : HTTPServerRequestHandler {
                         enum hasHttpMethod = hasAnnotation!(__traits(getMember, _C, memberName), CarbMethod);
                         static if(hasPath || hasAction || hasHttpMethod){
                             static if(hasHttpMethod){
-                                enum method = getAnnotation!(__traits(getMember, _C, memberName), CarbMethod).method;
+                                enum method = getAnnotation!(__traits(getMember, _C, memberName), CarbMethod)._method;
                                
                                 static if(hasPath){
                                     enum p = getAnnotation!(__traits(getMember, _C, memberName), CarbPath);
-                                    path = p.path;
+                                    path = p._path;
                                    
                                 }
                                 else{
                                     import std.traits : ParameterTypeTuple, ReturnType,
                                     ParameterDefaultValueTuple, ParameterIdentifierTuple;  
                                     enum params = [ParameterIdentifierTuple!(__traits(getMember, _C,memberName))];
-                                    static if(params.length && params[0].toLower() == "id"){
+                                    if(params.length && params[0].toLower() == _R ~ "_id"){
                                         
-                                        path = path ~  "/:id";
+                                        path =  path ~   "/:" ~ _R ~ "_id";
                                        
                                         
                                     }
                                 }
+                                
 
-                                this.addRoute(method,path,RouteDefaults(_Module,resource));
+                                this.addRoute(method,path,RouteDefaults(_C.classinfo,memberName));
                             }
                             
                         }
                         
                     }
                 }
+                return this;
 
         }
 
-        final @property void resource(string _R)(){
-                import std.algorithm;
-                
 
+        final @property CarbRouter resource(string _R)(string prefix=""){
+                import std.algorithm;
+                assert(_controllerDirectory.length,"You need to specify a controller directory");
                 enum _Cont = _R.capitalize() ~ "Controller";
                 enum _Module = _controllerDirectory  ~ "." ~ _R.toLower();
 
-                
-
                 mixin(format(
                         q{  
-                              import %s;
-                              resourceCont!%s("""%s""");
-
+                            import %s;  
+                            return resource!(%s,"""%s""")(prefix);
                         },
                         _Module,_Cont,_R));
-                       
-
                 
+
         }
-        
+
+        final @property CarbRouter resource( _C : Controller)(){
+            import std.traits;
+            return resource!(_C,fullyQualifiedName!(_C).split(".")[$-1][0 .. $ - 10 ].toLower());
+            
+        }
+
+        final @property CarbRouter resource(string _R)( void delegate(CarbNamespace namespace) yield) {
+            resource!(_R);
+            CarbNamespace namespace = new CarbNamespace(this,_R);
+            
+            yield(namespace);
+            return this;
+        }
+
+        final @property CarbRouter namespace(string _R)( void delegate(CarbNamespace namespace) yield) {
+            
+            CarbNamespace n = new CarbNamespace(this,_R,_R);
+            
+            yield(n);
+            return this;
+        }
+
         /// Handles a HTTP request by dispatching it to the registered route handlers.
         
         override void handleRequest(HTTPServerRequest req, HTTPServerResponse res)
@@ -202,25 +181,14 @@ class CarbRouter(string _controllerDirectory) : HTTPServerRequestHandler {
                         if( auto pr = &m_routes[method] ){
 
                                 foreach( ref r; *pr ){
-                                        if( r.matches(req.path, req.params) ){
-                                              //  logTrace("route match: %s -> %s %s", req.path, req.method, r.pattern);
-                                                // .. parse fields ..
-                                                //writeln(req.query["y"]);
-                                                //create controller
-                                                //r.controller "action"
-                                                
-                                                mixin(format(
-                                                        q{  
-                                                            string contDir = """%s""";
-                                                        },
-                                                        _controllerDirectory));
-                                                auto o = Controller.factory( contDir ~"."~ r.controller,req,res);
-                                                
 
-                                              //  o.init(req,res);
-                                             
+                                        if( r.matches(req.path, req.params) ){
+                                                                                 
+
+                                                auto o = ControllerFactory.create(r.controllerData,req,res);
+
                                                 o.callMethod(req,res,r.action);
-                                                //r.cb();
+
                                                 if( res.headerWritten )
                                                         return;
                                         }
@@ -233,71 +201,20 @@ class CarbRouter(string _controllerDirectory) : HTTPServerRequestHandler {
                 logTrace("no route match: %s %s", req.method, req.requestURL);
         }
 
-    /// Returns all registered routes as const AA
-        //const(typeof(m_routes)) getAllRoutes()
-        //{
-        //        return m_routes;
-        //}
+        @property typeof(m_routes) routes() {
+            return m_routes;
+        }
+
+        
+
 }
 
 
 
-private enum maxRouteParameters = 64;
 
 public struct RouteDefaults{
-    string controller;
+    TypeInfo_Class controllerData;
     string action;
 
 }
 
-private struct Route {
-        string pattern;
-        string controller;
-        string action;
-        
-        bool matches(string url, ref string[string] params)
-        const {
-                size_t i, j;
-
-                // store parameters until a full match is confirmed
-                import std.typecons;
-                Tuple!(string, string)[maxRouteParameters] tmpparams;
-                size_t tmppparams_length = 0;
-
-                for (i = 0, j = 0; i < url.length && j < pattern.length;) {
-                        if (pattern[j] == '*') {
-                                foreach (t; tmpparams[0 .. tmppparams_length])
-                                        params[t[0]] = t[1];
-                                return true;
-                        }
-                        if (url[i] == pattern[j]) {
-                                i++;
-                                j++;
-                        } else if(pattern[j] == ':') {
-                                j++;
-                                string name = skipPathNode(pattern, j);
-                                string match = skipPathNode(url, i);
-                                assert(tmppparams_length < maxRouteParameters, "Maximum number of route parameters exceeded.");
-                                tmpparams[tmppparams_length++] = tuple(name, urlDecode(match));
-                        } else return false;
-                }
-
-                if ((j < pattern.length && pattern[j] == '*') || (i == url.length && j == pattern.length)) {
-                        foreach (t; tmpparams[0 .. tmppparams_length])
-                                params[t[0]] = t[1];
-                        return true;
-                }
-
-                return false;
-        }
-}
-
-
-
-
-private string skipPathNode(string str, ref size_t idx)
-{
-        size_t start = idx;
-        while( idx < str.length && str[idx] != '/' ) idx++;
-        return str[start .. idx];
-}

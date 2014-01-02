@@ -15,10 +15,10 @@ interface Dynamic {
 enum DynamicallyAvailable; // we'll use this as a user-defined annotation to see if the method should be available
 enum Action;
 struct CarbPath{
-	string path;
+	string _path;
 }
 struct CarbMethod{
-	HTTPMethod method;
+	HTTPMethod _method;
 }
 
 // This sees if the above attribute is on the member
@@ -96,7 +96,7 @@ mixin template DynamicImplementation() {
 
 
 		template ValidationParamHandler(P,VPT ...){
-			void validationParamHandler(ref VPT vparams,int method,int depth=3){
+			void validationParamHandler(string resourceName,ref VPT vparams,int method,int depth=3){
                 enforce(
                     depth > -1,
                     format("Max depth exceeded")
@@ -107,13 +107,14 @@ mixin template DynamicImplementation() {
         		enum Vnames = [ParameterIdentifierTuple!(__traits(getMember, P,"initWithArgs"))];
         		alias Vdefaults = ParameterDefaultValueTuple!(__traits(getMember, P,"initWithArgs"));
         		writeln(Vnames);
+
  //       		VPT vparams;
         		foreach (n, Q; VPT) {
-        			 static if (n == 0 && Vnames[n] == "id") {
+        			 if (n == 0 && Vnames[n] == resourceName ~ "_id") {
                             // legacy special case for :id, backwards-compatibility
-                            logDebug("id %s", req.params["id"]);
-                            writeln(req.params["id"]);
-                            vparams[n] = fromRestString!Q(req.params["id"]);
+                            logDebug("id %s", req.params[resourceName ~ "_id"]);
+                            writeln(req.params[resourceName ~ "_id"]);
+                            vparams[n] = fromRestString!Q(req.params[resourceName ~ "_id"]);
                     }
                     else{
                     		alias VDefVal = Vdefaults[n];
@@ -124,13 +125,13 @@ mixin template DynamicImplementation() {
                             static if(is(Q : IValidator)){
                         		alias WPT = ParameterTypeTuple!(__traits(getMember, Q,"initWithArgs"));
                         		WPT qparams;
-                        		ValidationParamHandler!(Q,WPT).validationParamHandler(qparams,method,depth - 1);
+                        		ValidationParamHandler!(Q,WPT).validationParamHandler(resourceName,qparams,method,depth - 1);
                         		Q obj = new Q();
                         		__traits(getMember, obj,"initWithArgs")(qparams);
                         		bool validate = __traits(getMember, obj,"validate")();
                         		enforce(
                         				validate,
-                                        format("Failed validation on query parameter '%s'. \n Error: %s", Vnames[n],obj.getError())
+                                        format("Failed validation on query parameter '%s'. \n Error: %s\n Class: %s", Vnames[n],obj.getError(),obj)
                         			);
                         		vparams[n] = obj;
                             }
@@ -139,7 +140,7 @@ mixin template DynamicImplementation() {
 		                            static if (is (VDefVal == void)) {
 		                                    enforce(
 		                                            Vnames[n] in req.query,
-		                                            format("Missing validation query parameter '%s'", Vnames[n])
+		                                            format("Missing validation query parameter '%s' ", Vnames[n])
 		                                    );
 		                            } else {
 		                                    if (Vnames[n] !in req.query) {
@@ -201,8 +202,8 @@ mixin template DynamicImplementation() {
 
 					        alias ParamDefaults = ParameterDefaultValueTuple!Func;
 					        enum ParamNames = [ ParameterIdentifierTuple!Func ];
-							
-				                
+								string resourceName = T.classinfo.name.split(".")[$-1][0 .. $ - 10 ].toLower();
+
 				                foreach (i, P; PT) {
 				                        static assert (
 				                                ParamNames[i].length,
@@ -213,12 +214,13 @@ mixin template DynamicImplementation() {
 				                                )
 				                        );
 
+				                        
 				                        // will be re-written by UDA function anyway
 				                       // static if (!IsAttributedParameter!(Func, ParamNames[i])) {
-				                                static if (i == 0 && ParamNames[i] == "id") {
+				                                if ((ParamNames[i] in req.params)) {
 				                                        // legacy special case for :id, backwards-compatibility
-				                                        logDebug("id %s", req.params["id"]);
-				                                        params[i] = fromRestString!P(req.params["id"]);
+				                                        logDebug("id %s", req.params[resourceName ~ "_id"]);
+				                                        params[i] = fromRestString!P(req.params[ParamNames[i]]);
 				                                } else static if (ParamNames[i].startsWith("_")) {
 				                                        // URL parameter
 				                                        static if (ParamNames[i] != "_dummy") {
@@ -237,6 +239,7 @@ mixin template DynamicImplementation() {
 				                                                logDebug("query %s of %s" ,ParamNames[i], req.query);
 				                                                
 				                                                static if (is (DefVal == void)) {
+
 				                                                        enforce(
 				                                                                ParamNames[i] in req.query,
 				                                                                format("Missing query parameter '%s'", ParamNames[i])
@@ -256,14 +259,14 @@ mixin template DynamicImplementation() {
 				                                                		
 				                                                		alias VPT = ParameterTypeTuple!(__traits(getMember, P,"initWithArgs"));
 				                                                		VPT vparams;
-				                                                		ValidationParamHandler!(P,VPT).validationParamHandler(vparams,req.method);
+				                                                		ValidationParamHandler!(P,VPT).validationParamHandler(resourceName, vparams,req.method);
 				                                                		writeln(vparams);
 				                                                		P obj = new P();
 				                                                		__traits(getMember, obj,"initWithArgs")(vparams);
 				                                                		bool validate = __traits(getMember, obj,"validate")();
 				                                                		enforce(
 				                                                				validate,
-							                                                    format("Failed validation on query parameter '%s'. \n Error: %s", ParamNames[i],obj.getError())
+							                                                    format("Failed validation on query parameter '%s'. \n Error: %s\n Class: %s", ParamNames[i],obj.getError(),obj)
 				                                                			);
 				                                                		params[i] = obj;
 				                                                }
@@ -309,7 +312,7 @@ mixin template DynamicImplementation() {
 				                                                		
 				                                                		alias VPT = ParameterTypeTuple!(__traits(getMember, P,"initWithArgs"));
 				                                                		VPT vparams;
-				                                                		ValidationParamHandler!(P,VPT).validationParamHandler(vparams,req.method);
+				                                                		ValidationParamHandler!(P,VPT).validationParamHandler(resourceName,vparams,req.method);
 				                                                		writeln(vparams);
 				                                                		P obj = new P();
 				                                                		__traits(getMember, obj,"initWithArgs")(vparams);
@@ -374,46 +377,59 @@ mixin template DynamicImplementation() {
 
 
 
-
-
-
-
 }
 
 
 class Controller : Dynamic {
 	mixin DynamicImplementation!();
 
-	protected HTTPServerRequest req;
-	protected HTTPServerResponse res;
+	protected {
+		HTTPServerRequest _request;
+		HTTPServerResponse _response;
+	}
 
 	this(){
 
 	}
 
 
-
-	void init(HTTPServerRequest req, HTTPServerResponse res) {
-		this.req = req;
-		this.res = res;
+	this(HTTPServerRequest req, HTTPServerResponse res) {
+		this._request = req;
+		this._response = res;
 			
 	}
 
+	Controller init(HTTPServerRequest req, HTTPServerResponse res) {
+		this._request = req;
+		this._response = res;
+		return this;
+			
+	}
 
+	@property HTTPServerRequest request() {
+	return _request;
+	}
 
-	static Controller factory(string name,HTTPServerRequest req, HTTPServerResponse res){
-		Controller c = cast(Controller) Object.factory(name);
-		c.init(req,res);
-		return c;
+	@property HTTPServerResponse response() {
+	return _response;
+	}
+
+	@property void request(HTTPServerRequest req) {
+	_request = req;
+	}
+
+	@property void response(HTTPServerResponse res) {
+	_response = res;
 	}
 
 
 }
-class ControllerFactory(T : Controller){
+class ControllerFactory{
 
-	static T create(HTTPServerRequest req, HTTPServerResponse res){
-		T cont = new T(req,res);
-		return cont;
+	static Controller create(TypeInfo_Class contInfo, HTTPServerRequest req, HTTPServerResponse res){
+		Controller c = cast(Controller) contInfo.create();
+		return c.init(req,res);
+		
 	}
 
 }

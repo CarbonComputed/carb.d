@@ -1,5 +1,6 @@
 module carb.app;
 import carb.base.controller;
+import carb.http.namespace;
 import vibe.d;
 import std.string;
 import std.stdio;
@@ -18,7 +19,7 @@ class AuthController : Controller{
         void login(int y){
                 writeln("y");
                 writeln(y);
-                this.res.writeJsonBody(y);
+                this.response.writeJsonBody(y);
         }
         
 }
@@ -29,15 +30,24 @@ class AuthController : Controller{
 
 shared static this()
 {
-        auto router = new CarbRouter!"carb.controllers";
+        auto router = new CarbRouter;
         //router.get("/users/:user", &userInfo);
         //router.post("/adduser", &addUser);
         
-      //  router.addRoute(HTTPMethod.GET,"/:id",RouteDefaults("index.IndexController","index"));
-      
-        router.resource!"index";
-
+        //router.addRoute(HTTPMethod.GET,"/login",RouteDefaults(AuthController.classinfo,"login"));
         
+        //router.resource!("index");
+        router.namespace!("api")( delegate void (CarbNamespace b) {
+            b.resource!("index")( delegate void (CarbNamespace bloggers) {
+                bloggers.namespace!("auth")( delegate void (CarbNamespace auth) {
+                    auth.resource!("chill");
+                });;
+            });
+        });
+//router.resource!("index").resource!("auth");
+        //router.resource!(AuthController)();
+
+
         // To reduce code redundancy, you can also
         // use method chaining:
         //router
