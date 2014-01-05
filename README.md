@@ -15,15 +15,15 @@ import std.stdio;
 import carb.http.router;
 import carb.base.validator;
 
-
+import carb.controllers.index;
 
 
 
 shared static this()
 {
-        auto router = new CarbRouter!"carb.controllers";
+        auto router = new CarbRouter;
 
-        router.resource!"index";
+        router.resource!IndexController;
 
 
         auto settings = new HTTPServerSettings;
@@ -33,7 +33,6 @@ shared static this()
 }
 ```
 
-In carb.controllers I have a file named index.d:
 ```
 module carb.controllers.index;
 import carb.base.controller;
