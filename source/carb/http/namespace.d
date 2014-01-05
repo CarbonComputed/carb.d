@@ -4,7 +4,10 @@ import carb.http.router;
 import std.array;
 import std.algorithm;
 import std.stdio;
+import std.traits;
+import std.string;
 
+import carb.base.controller;
 
 
 class CarbNamespace {
@@ -81,14 +84,32 @@ class CarbNamespace {
   }
 
 
+
   CarbRouter resource(string _R)( void delegate(CarbNamespace namespace) yield) {
 
     resource!(_R);
-    CarbNamespace namespace = new CarbNamespace(_router,_namespaces ~ _R,_prefixes);
+    CarbNamespace namespace = new CarbNamespace(_router,_namespaces ~ _R.split(".")[$-1],_prefixes);
     
     yield(namespace);
     return _router;
   }
+
+  CarbRouter resource( _C : Controller)(){
+      _router.resource!(_C)(joinPrefix());
+      return _router;
+  }
+
+  CarbRouter resource( _C : Controller)( void delegate(CarbNamespace namespace) yield){
+
+      _router.resource!(_C);
+      CarbNamespace namespace = new CarbNamespace(_router, _namespaces ~ fullyQualifiedName!(_C).split(".")[$-1][0 .. $ - 10 ].toLower(),_prefixes);
+      
+      yield(namespace);
+      return _router;
+      
+  }
+
+
 
   private {
     string singularize(string input) {

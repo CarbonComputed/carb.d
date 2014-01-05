@@ -24,26 +24,29 @@ class AuthController : Controller{
         
 }
 
-
+import carb.controllers.chill;
 
 
 
 shared static this()
 {
         auto router = new CarbRouter;
+
         //router.get("/users/:user", &userInfo);
         //router.post("/adduser", &addUser);
         
         //router.addRoute(HTTPMethod.GET,"/login",RouteDefaults(AuthController.classinfo,"login"));
-        
-        //router.resource!("index");
-        router.namespace!("api")( delegate void (CarbNamespace b) {
-            b.resource!("index")( delegate void (CarbNamespace bloggers) {
-                bloggers.namespace!("auth")( delegate void (CarbNamespace auth) {
-                    auth.resource!("chill");
-                });;
-            });
-        });
+       // enum _controllerDirectory = "carb.controllers.";
+       //// router.resource!(_controllerDirectory ~"index");
+       // router.namespace!("api")( delegate void (CarbNamespace b) {
+       //     b.resource!(AuthController)( delegate void (CarbNamespace bloggers) {
+       //         bloggers.namespace!( "authasdf")( delegate void (CarbNamespace auth) {
+       //             auth.resource!(ChillController);
+       //         });;
+       //     });
+       // });
+
+        router.resource!("carb.controllers.chill.ChillController");
 //router.resource!("index").resource!("auth");
         //router.resource!(AuthController)();
 

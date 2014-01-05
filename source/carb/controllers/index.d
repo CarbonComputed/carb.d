@@ -12,6 +12,7 @@ import carb.base.validator;
 
 class IndexController : Controller{
         mixin DynamicImplementation!();
+        
 
         @Action
         @CarbMethod(HTTPMethod.GET)

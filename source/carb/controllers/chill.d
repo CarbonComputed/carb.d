@@ -15,7 +15,7 @@ class ChillController : Controller{
 
         @Action
         @CarbMethod(HTTPMethod.GET)
-        void index(int chill_id,int auth_id, int index_id,Val q){
+        void index(int chill_id){
                 //this.res.writeJsonBody(id);
                 //this.res.writeJsonBody(q);
                 this.response.writeBody("Hello, World ", "text/plain");
