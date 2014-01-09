@@ -1,15 +1,21 @@
 module carb.http.route;
-
+import carb.base.controller;
 import vibe.d;
 import std.stdio;
 import std.conv;
 
 
-class CarbRoute {
+interface IRoute{
+        @property Controller controller(HTTPServerRequest req, HTTPServerResponse res);
+        @property string action();
+        bool matches(string url, ref string[string] params);
+}
+
+class CarbRoute(_C : Controller) : IRoute{
 
         protected{
                 string _pattern;
-                TypeInfo_Class _contInfo;
+                _C _controller;
                 string _action;
                 HTTPMethod _method;           
         }
@@ -19,19 +25,16 @@ class CarbRoute {
 
         }
 
-        this(HTTPMethod method, string pattern, string controllerName, string action){
-                _method = method;
-                this._pattern = pattern;
-                _contInfo = cast(TypeInfo_Class)TypeInfo_Class.find(controllerName);
-                this._action = action;
-        }
+        //this(HTTPMethod method, string pattern, string controllerName, string action){
+        //        _method = method;
+        //        this._pattern = pattern;
+        //        //_contInfo = cast(TypeInfo_Class)TypeInfo_Class.find(controllerName);
+        //        this._action = action;
+        //}
         
-        this(HTTPMethod method, string pattern, TypeInfo_Class contInfo, string action){
+        this(HTTPMethod method, string pattern, string action){
                 _method = method;
                 this._pattern = pattern;
-                                writeln(this._pattern);
-
-                this._contInfo = contInfo;
                 this._action = action;
         }
 
@@ -40,7 +43,7 @@ class CarbRoute {
         }
 
         @property string controllerName() {
-                return _contInfo.name;
+                return _C.classinfo.name;
         }
 
         @property string pattern() const{
@@ -56,9 +59,13 @@ class CarbRoute {
         }
 
         @property TypeInfo_Class controllerData(){
-                return _contInfo;
+                return _C.classinfo;
         }
 
+        @property Controller controller(HTTPServerRequest req, HTTPServerResponse res){
+                _C controller = new _C(req,res);
+                return controller;
+        }
 
 
         bool matches(string url, ref string[string] params)
@@ -104,8 +111,8 @@ class CarbRoute {
 
 unittest{
         string contName = "carb.controllers.index.IndexController";
-        CarbRoute r = new CarbRoute(HTTPMethod.GET,"/",contName,"test");
-        assert(contName==r.controllerName);
+        //CarbRoute r = new CarbRoute(HTTPMethod.GET,"/",contName,"test");
+        //assert(contName==r.controllerName);
 }
 
 

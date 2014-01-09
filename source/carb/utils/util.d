@@ -46,7 +46,6 @@ Attr)) {
 
 string[] getAllDynamicClasses() {
         string[] list;
-        pragma(msg,__traits(allMembers,ModuleInfo));
         // ModuleInfo is a class defined in the globally-available object.d
         // that gives info about all the modules. It can be looped over and inspected.
         foreach(mod; ModuleInfo) {

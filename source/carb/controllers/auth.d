@@ -13,6 +13,10 @@ import carb.base.validator;
 class AuthController : Controller{
         mixin DynamicImplementation!();
 
+		this(HTTPServerRequest req, HTTPServerResponse res) {
+			super(req,res);
+		}
+		
         @Action
         @CarbMethod(HTTPMethod.GET)
         void index(int auth_id,int index_id,Val q){

@@ -13,13 +13,20 @@ import carb.base.validator;
 class ChillController : Controller{
         mixin DynamicImplementation!();
 
-        @Action
+		this(HTTPServerRequest req, HTTPServerResponse res) {
+			super(req,res);
+		}
+
         @CarbMethod(HTTPMethod.GET)
-        void index(int chill_id){
+        @CarbPath("")
+        void index(int chill_id=5,int y = 9){
                 //this.res.writeJsonBody(id);
                 //this.res.writeJsonBody(q);
+                writeln(chill_id);
                 this.response.writeBody("Hello, World ", "text/plain");
         }
+
+
 
 
         

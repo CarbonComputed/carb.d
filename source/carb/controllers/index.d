@@ -12,11 +12,15 @@ import carb.base.validator;
 
 class IndexController : Controller{
         mixin DynamicImplementation!();
-        
+
+		this(HTTPServerRequest req, HTTPServerResponse res) {
+			super(req,res);
+		}
 
         @Action
         @CarbMethod(HTTPMethod.GET)
-        void index(int index_id,Val q){
+        @CarbPath("")
+        void create(int index_id,Val q){
                 //this.res.writeJsonBody(id);
                 //this.res.writeJsonBody(q);
                 this.response.writeBody("Hello, World id!", "text/plain");

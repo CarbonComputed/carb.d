@@ -7,9 +7,10 @@ import std.traits;
 import std.stdio;
 
 import carb.base.validator;
+import carb.utils.util;
 
 interface Dynamic {
-	Variant callMethod(HTTPServerRequest req, HTTPServerResponse res,string method);
+	Variant __send__(string method,HTTPServerRequest req, HTTPServerResponse res);
 }
 
 enum DynamicallyAvailable; // we'll use this as a user-defined annotation to see if the method should be available
@@ -20,6 +21,8 @@ struct CarbPath{
 struct CarbMethod{
 	HTTPMethod _method;
 }
+
+
 
 // This sees if the above attribute is on the member
 bool isDynamicallyAvailable(alias member)() {
@@ -38,6 +41,16 @@ bool isActionAvailable(alias member)() {
 	// we don't handle that case here)
 	foreach(annotation; __traits(getAttributes, member))
 		static if(is(annotation == Action))
+			return true;
+	return false;
+}
+
+bool isCarbMethodAvailable(alias member)() {
+	// the way UDAs work in D is this trait gives you a list of them
+	// they are identified by type and can also hold a value (though
+	// we don't handle that case here)
+	foreach(annotation; __traits(getAttributes, member))
+		static if(is(typeof(annotation) == CarbMethod))
 			return true;
 	return false;
 }
@@ -92,7 +105,7 @@ mixin template DynamicImplementation() {
 	import std.variant;
 	import std.conv;
 	import std.traits;
-	override Variant callMethod(HTTPServerRequest req, HTTPServerResponse res, string methodNameWanted) {
+	override Variant __send__(string methodNameWanted,HTTPServerRequest req, HTTPServerResponse res) {
 
 
 		template ValidationParamHandler(P,VPT ...){
@@ -106,15 +119,14 @@ mixin template DynamicImplementation() {
 				}
         		enum Vnames = [ParameterIdentifierTuple!(__traits(getMember, P,"initWithArgs"))];
         		alias Vdefaults = ParameterDefaultValueTuple!(__traits(getMember, P,"initWithArgs"));
-        		writeln(Vnames);
 
  //       		VPT vparams;
         		foreach (n, Q; VPT) {
-        			 if (n == 0 && Vnames[n] == resourceName ~ "_id") {
+        			 if ((Vnames[n] in req.params)) {
                             // legacy special case for :id, backwards-compatibility
-                            logDebug("id %s", req.params[resourceName ~ "_id"]);
-                            writeln(req.params[resourceName ~ "_id"]);
-                            vparams[n] = fromRestString!Q(req.params[resourceName ~ "_id"]);
+                            logDebug("id %s", req.params[Vnames[n]]);
+                         
+                            vparams[n] = fromRestString!Q(req.params[Vnames[n]]);
                     }
                     else{
                     		alias VDefVal = Vdefaults[n];
@@ -194,7 +206,8 @@ mixin template DynamicImplementation() {
 //				alias member = Helper!(__traits(getMember, this, memberName));
 
 				// we're only interested in calling functions that are marked as available
-				static if(is(typeof(__traits(getMember, this, memberName)) == function) && isActionAvailable!(__traits(getMember, this, memberName))) {
+				static if(is(typeof(__traits(getMember, this, memberName)) == function) && 
+					( isActionAvailable!(__traits(getMember, this, memberName)) || isCarbMethodAvailable!(__traits(getMember, this, memberName))  )) {
 				
 				alias PT = ParameterTypeTuple!(__traits(getMember, this, memberName));
 				PT params;
@@ -260,7 +273,6 @@ mixin template DynamicImplementation() {
 				                                                		alias VPT = ParameterTypeTuple!(__traits(getMember, P,"initWithArgs"));
 				                                                		VPT vparams;
 				                                                		ValidationParamHandler!(P,VPT).validationParamHandler(resourceName, vparams,req.method);
-				                                                		writeln(vparams);
 				                                                		P obj = new P();
 				                                                		__traits(getMember, obj,"initWithArgs")(vparams);
 				                                                		bool validate = __traits(getMember, obj,"validate")();
@@ -313,7 +325,6 @@ mixin template DynamicImplementation() {
 				                                                		alias VPT = ParameterTypeTuple!(__traits(getMember, P,"initWithArgs"));
 				                                                		VPT vparams;
 				                                                		ValidationParamHandler!(P,VPT).validationParamHandler(resourceName,vparams,req.method);
-				                                                		writeln(vparams);
 				                                                		P obj = new P();
 				                                                		__traits(getMember, obj,"initWithArgs")(vparams);
 				                                                		bool validate = __traits(getMember, obj,"validate")();
@@ -388,9 +399,6 @@ class Controller : Dynamic {
 		HTTPServerResponse _response;
 	}
 
-	this(){
-
-	}
 
 
 	this(HTTPServerRequest req, HTTPServerResponse res) {
@@ -399,12 +407,6 @@ class Controller : Dynamic {
 			
 	}
 
-	Controller init(HTTPServerRequest req, HTTPServerResponse res) {
-		this._request = req;
-		this._response = res;
-		return this;
-			
-	}
 
 	@property HTTPServerRequest request() {
 	return _request;
@@ -424,15 +426,7 @@ class Controller : Dynamic {
 
 
 }
-class ControllerFactory{
 
-	static Controller create(TypeInfo_Class contInfo, HTTPServerRequest req, HTTPServerResponse res){
-		Controller c = cast(Controller) contInfo.create();
-		return c.init(req,res);
-		
-	}
-
-}
 
 unittest{
 	//Controller c = new Controller;

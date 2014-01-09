@@ -15,6 +15,10 @@ import carb.base.validator;
 class AuthController : Controller{
         mixin DynamicImplementation!();
 
+        this(HTTPServerRequest req, HTTPServerResponse res) {
+            super(req,res);
+        }
+
         @Action
         void login(int y){
                 writeln("y");

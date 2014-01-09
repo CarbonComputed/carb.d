@@ -1,13 +1,13 @@
 module carb.http.defaults;
+import carb.base.controller;
 
-class RouteDefaults{
+class RouteDefaults(_C : Controller){
 	protected{
-	    TypeInfo_Class _controllerData;
+	    _C _controller;
 	    string _action;
 	}
 
-	this(TypeInfo_Class controllerData, string action){
-		this._controllerData = controllerData;
+	this(string action){
 		this._action = action;
 	}
 
@@ -16,8 +16,9 @@ class RouteDefaults{
 	}
 
 	@property TypeInfo_Class routeControllerData(){
-		return _controllerData;
+		return _controller.classinfo;
 	}
+
 
 
 }

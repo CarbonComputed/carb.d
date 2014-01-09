@@ -18,23 +18,23 @@ class CarbNamespace {
     string[]     _namespaces;
     string[]     _variables;
     string[]     _prefixes;
-  }
+}
 
 
 
 
-  this(CarbRouter router, string namespace,string prefix = "") {
+this(CarbRouter router, string namespace,string prefix = "") {
     if(prefix.length){
       this(router,[namespace],[prefix]);
-    }
-    else{
+  }
+  else{
       this(router,[namespace],[]);
-    }
-
   }
 
+}
 
-  this(CarbRouter router, string[] namespaces,string[] prefixes) {
+
+this(CarbRouter router, string[] namespaces,string[] prefixes) {
     _router     = router;
     foreach(int i,ns; namespaces) {
       _namespaces ~= ns;
@@ -43,75 +43,75 @@ class CarbNamespace {
       //if(!find(prefixes,ns).length){
          _variables  ~= ":" ~ singularize(ns) ~ "_id";
       //}
-    }
-    foreach(p;prefixes){
-      _prefixes ~= p;
-    }
   }
+  foreach(p;prefixes){
+      _prefixes ~= p;
+  }
+}
 
 
 
-  CarbRouter namespace(string _R)( void delegate(CarbNamespace namespace) yield) {
+CarbRouter namespace(string _R)( void delegate(CarbNamespace namespace) yield) {
     _namespaces ~= _R;
     _prefixes ~= _R;
     _variables ~= "";
     CarbNamespace namespace = new CarbNamespace(_router,_namespaces,_prefixes);
     yield(namespace);
     return _router;
-  }
+}
 
-  string joinPrefix() {
+string joinPrefix() {
     string[] prefix;
     for (int i = 0; i < _namespaces.length; i++) {
       prefix ~= _namespaces[i];
       if(!find(_prefixes,_namespaces[i]).length){
         if(_variables.length){
           prefix ~= _variables[i];
-        }
-
-
       }
-    }
-    return "/" ~ join(prefix, "/");
+
+
   }
+}
+return "/" ~ join(prefix, "/");
+}
 
 
-  CarbRouter resource(string _R)() {
+CarbRouter resource(string _R)() {
     _router.resource!(_R)(joinPrefix());
 
 
     return _router;
-  }
+}
 
 
 
-  CarbRouter resource(string _R)( void delegate(CarbNamespace namespace) yield) {
+CarbRouter resource(string _R)( void delegate(CarbNamespace namespace) yield) {
 
     resource!(_R);
     CarbNamespace namespace = new CarbNamespace(_router,_namespaces ~ _R.split(".")[$-1],_prefixes);
     
     yield(namespace);
     return _router;
-  }
+}
 
-  CarbRouter resource( _C : Controller)(){
-      _router.resource!(_C)(joinPrefix());
-      return _router;
-  }
+CarbRouter resource( _C : Controller)(){
+    _router.resource!(_C)(joinPrefix());
+    return _router;
+}
 
-  CarbRouter resource( _C : Controller)( void delegate(CarbNamespace namespace) yield){
+CarbRouter resource( _C : Controller)( void delegate(CarbNamespace namespace) yield){
 
-      _router.resource!(_C);
-      CarbNamespace namespace = new CarbNamespace(_router, _namespaces ~ fullyQualifiedName!(_C).split(".")[$-1][0 .. $ - 10 ].toLower(),_prefixes);
-      
-      yield(namespace);
-      return _router;
-      
-  }
+    _router.resource!(_C);
+    CarbNamespace namespace = new CarbNamespace(_router, _namespaces ~ fullyQualifiedName!(_C).split(".")[$-1][0 .. $ - 10 ].toLower(),_prefixes);
+    
+    yield(namespace);
+    return _router;
+    
+}
 
 
 
-  private {
+private {
     string singularize(string input) {
       // classes case
       if (input[input.length - 3..input.length - 1] == "ses")
@@ -120,7 +120,7 @@ class CarbNamespace {
       else if (input[input.length - 1] == 's')
         return input[0..input.length - 1];
 
-      return input;
-    }
-  }
+    return input;
+}
+}
 }

@@ -35,7 +35,6 @@ class TVal : Validator{
 	int x;
 
 	void initWithArgs(string q,int y ){
-		writeln(y);
 		this.x = y;
 
 	}
