@@ -1,0 +1,29 @@
+class Thing
+	
+	_currentCommit
+	_history<Commit>
+	_fields<Field>
+
+	_commit
+
+	_rollback
+
+
+
+class User : Thing
+	
+	name() : this.name = name
+
+
+Operation<action,field,value>
+
+Commit
+	_operations<Operation>
+
+Field
+	getPendingChanges
+	opAssign
+	validate
+
+
+

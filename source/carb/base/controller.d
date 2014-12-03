@@ -409,19 +409,19 @@ class Controller : Dynamic {
 
 
 	@property HTTPServerRequest request() {
-	return _request;
+		return _request;
 	}
 
 	@property HTTPServerResponse response() {
-	return _response;
+		return _response;
 	}
 
 	@property void request(HTTPServerRequest req) {
-	_request = req;
+		_request = req;
 	}
 
 	@property void response(HTTPServerResponse res) {
-	_response = res;
+		_response = res;
 	}
 
 
